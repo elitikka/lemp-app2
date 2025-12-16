@@ -141,7 +141,7 @@ jobs:
         uses: azure/setup-kubectl@v3
         with:
           version: 'latest'
-
+ 
 # debuggausta
       - name: Configure kubectl
         run: |
