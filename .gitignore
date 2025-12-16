@@ -1,0 +1,19 @@
+# Virtual environment if there is any
+venv/
+
+# Python cache & temp files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Env
+.env
+*.env
+
+# Logs & tempfiles
+*.log
+*.tmp
+
+#MySQL secrets
+mysql-secret.yaml
