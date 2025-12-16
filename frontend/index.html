@@ -68,9 +68,11 @@
         </div>
 
         <div id="addUserSection">
+            <h3>Add New User</h3>
             <input id="userName" type="text" placeholder="Name">
             <input id="userEmail" type="email" placeholder="Email">
             <button onclick="addUser()">Add</button>
+            <button onclick="closeAddUser()" style="background: #6c757d;">Cancel</button>
             <div id="errorMessage" class="error"></div>
         </div>
 
@@ -121,7 +123,23 @@
 
         function toggleAddUser() {
             const section = document.getElementById('addUserSection');
-            section.style.display = section.style.display === 'none' ? 'block' : 'none';
+            section.style.display = 'block';
+            errorMessage.textContent = "";
+            // Focus on the name input
+            document.getElementById('userName').focus();
+        }      
+
+//        function toggleAddUser() {
+//            const section = document.getElementById('addUserSection');
+//            section.style.display = section.style.display === 'none' ? 'block' : 'none';
+//            errorMessage.textContent = "";
+//        }
+
+        function closeAddUser() {
+            const section = document.getElementById('addUserSection');
+            section.style.display = 'none';
+            document.getElementById('userName').value = '';
+            document.getElementById('userEmail').value = '';
             errorMessage.textContent = "";
         }
 
