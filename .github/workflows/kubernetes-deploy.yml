@@ -119,6 +119,7 @@ jobs:
         working-directory: ./backend
         env:
           DATABASE_URL: mysql://root:test_password@mysql:3306/test_db
+          PYTHONPATH: . # Lisätty tämä rivi koska actioneissa tuli joku error eikä se löytänyt jotain modulea tms. 
         run: pytest --cov=. --cov-report=xml
 
       # Docker build ja push
