@@ -127,7 +127,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-  # Job 3: Deploy Kubernetesiin
+  # Job 3: Deploy to Kubernetes via SSH
   deploy-to-kubernetes:
     needs: [build-frontend, build-backend]
     runs-on: ubuntu-latest
@@ -137,35 +137,48 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup kubectl
-        uses: azure/setup-kubectl@v3
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
         with:
-          version: 'latest'
- 
-# debuggausta
-      - name: Configure kubectl
-        run: |
-          mkdir -p $HOME/.kube
-          echo "Secret length: ${#KUBE_CONFIG}"
-          echo "$KUBE_CONFIG" | head -c 100
-          echo "$KUBE_CONFIG" | base64 -d > $HOME/.kube/config
-          chmod 600 $HOME/.kube/config
-        env:
-          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
-
-#      - name: Configure kubectl
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            # Update backend deployment
+            kubectl set image deployment/backend-cicd backend=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:main-${{ github.sha }} --record
+            
+            # Update frontend deployment  
+            kubectl set image deployment/frontend-cicd nginx=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:main-${{ github.sha }} --record
+            
+            # Wait for rollouts to complete
+            kubectl rollout status deployment/backend-cicd --timeout=300s
+            kubectl rollout status deployment/frontend-cicd --timeout=300s
+            
+            # Show status
+            echo "=== Deployments ==="
+            kubectl get deployments | grep cicd
+            echo "=== Pods ==="
+            kubectl get pods | grep cicd
+            echo "=== Services ==="
+            kubectl get services | grep cicd
+  
+  # Job 3: Deploy Kubernetesiin
+#  deploy-to-kubernetes:
+#    needs: [build-frontend, build-backend]
+#    runs-on: ubuntu-latest
+#    if: github.ref == 'refs/heads/main' && github.event_name == 'push'##
+#
+#    steps:
+#      - name: Checkout code
+#        uses: actions/checkout@v4#
+#
+#      - name: Update image tags in Kubernetes manifests
 #        run: |
-#          mkdir -p $HOME/.kube
-#          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
-#          chmod 600 $HOME/.kube/config
-
-      - name: Update image tags in Kubernetes manifests
-        run: |
-          # Päivitä frontend image
-          sed -i "s|image: .*frontend.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:main-${{ github.sha }}|" kubernetes/frontend-deployment.yaml
-
-          # Päivitä backend image
-          sed -i "s|image: .*backend.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:main-${{ github.sha }}|" kubernetes/backend-deployment.yaml
+#          # Päivitä frontend image
+#          sed -i "s|image: .*frontend.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:main-${{ github.sha }}|" kubernetes/frontend-deployment.yaml#
+#
+#          # Päivitä backend image
+#          sed -i "s|image: .*backend.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:main-${{ github.sha }}|" kubernetes/backend-deployment.yaml
 
 # MySQL deployment otettu pois, koska käytetään aiemman viikkotehtävän kanssa samaa mysql db:tä, joka on jo pyörimässä. 
 #      - name: Deploy MySQL (jos ei ole jo olemassa)
@@ -173,28 +186,27 @@ jobs:
 #          kubectl apply -f kubernetes/mysql-deployment.yaml
 
 # Lisätty deploymentti configmapille
-      - name: Deploy backend ConfigMap
-        run: kubectl apply -f kubernetes/backend-configmap.yaml
-
-      - name: Deploy backend
-        run: |
-          kubectl apply -f kubernetes/backend-deployment.yaml
-          kubectl rollout status deployment/backend-cicd
-
-      - name: Deploy frontend
-        run: |
-          kubectl apply -f kubernetes/frontend-deployment.yaml
-          kubectl rollout status deployment/frontend-cicd
+#      - name: Deploy backend ConfigMap
+#        run: kubectl apply -f kubernetes/backend-configmap.yaml#
+#      - name: Deploy backend
+#        run: |
+#         kubectl apply -f kubernetes/backend-deployment.yaml
+#          kubectl rollout status deployment/backend-cicd
+#
+#      - name: Deploy frontend
+#        run: |
+#          kubectl apply -f kubernetes/frontend-deployment.yaml
+#          kubectl rollout status deployment/frontend-cicd
 
 #Verifyihin lisätty  "| grep cicd" riveille.
-      - name: Verify deployment
-        run: |
-          echo "=== Pods ==="
-          kubectl get pods | grep cicd
-          echo "=== Services ==="
-          kubectl get services | grep cicd
-          echo "=== Deployment status ==="
-          kubectl get deployments | grep cicd
+#      - name: Verify deployment
+#        run: |
+#          echo "=== Pods ==="
+#          kubectl get pods | grep cicd
+#          echo "=== Services ==="
+#          kubectl get services | grep cicd
+#          echo "=== Deployment status ==="
+#          kubectl get deployments | grep cicd
 
 # Lisätty nodeport osa
       - name: Get NodePort
@@ -222,24 +234,43 @@ jobs:
 
           echo "✅ Smoke tests passed!"
 
-  # Job 4: Rollback jos deployment epäonnistuu
+# Job 4: Rollback on failure
   rollback-on-failure:
     needs: [deploy-to-kubernetes]
     runs-on: ubuntu-latest
     if: failure()
 
     steps:
-      - name: Setup kubectl
-        uses: azure/setup-kubectl@v3
+      - name: Rollback via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            echo "❌ Deployment failed, rolling back..."
+            kubectl rollout undo deployment/frontend-cicd
+            kubectl rollout undo deployment/backend-cicd
+            echo "⏪ Rollback completed"
 
-      - name: Configure kubectl
-        run: |
-          mkdir -p $HOME/.kube
-          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
-
-      - name: Rollback deployments
-        run: |
-          echo "❌ Deployment failed, rolling back..."
-          kubectl rollout undo deployment/frontend-cicd
-          kubectl rollout undo deployment/backend-cicd
-          echo "⏪ Rollback completed"
+  # Job 4: Rollback jos deployment epäonnistuu
+#  rollback-on-failure:
+#    needs: [deploy-to-kubernetes]
+#    runs-on: ubuntu-latest
+#    if: failure()
+#
+#    steps:
+#      - name: Setup kubectl
+#        uses: azure/setup-kubectl@v3
+#
+#      - name: Configure kubectl
+#        run: |
+#          mkdir -p $HOME/.kube
+#          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
+#
+#      - name: Rollback deployments
+#        run: |
+#          echo "❌ Deployment failed, rolling back..."
+#          kubectl rollout undo deployment/frontend-cicd
+#          kubectl rollout undo deployment/backend-cicd
+#          echo "⏪ Rollback completed"
