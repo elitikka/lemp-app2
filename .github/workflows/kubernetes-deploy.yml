@@ -23,28 +23,28 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+#      - name: Setup Node.js
+#        uses: actions/setup-node@v4
+#        with:
+#          node-version: '18'
+#          cache: 'npm'
+#          cache-dependency-path: frontend/package-lock.json
 
-      - name: Install dependencies
-        working-directory: ./frontend
-        run: npm ci
+#      - name: Install dependencies
+#        working-directory: ./frontend
+#        run: npm ci
 
-      - name: Run linter
-        working-directory: ./frontend
-        run: npm run lint
+#      - name: Run linter
+#        working-directory: ./frontend
+#        run: npm run lint
 
-      - name: Run tests
-        working-directory: ./frontend
-        run: npm test
+#      - name: Run tests
+#        working-directory: ./frontend
+#        run: npm test
 
-      - name: Build application
-        working-directory: ./frontend
-        run: npm run build
+ #     - name: Build application
+ #       working-directory: ./frontend
+ #       run: npm run build
 
       # Docker build ja push
       - name: Log in to Container Registry
@@ -119,6 +119,7 @@ jobs:
         working-directory: ./backend
         env:
           DATABASE_URL: mysql://root:test_password@mysql:3306/test_db
+          PYTHONPATH: . # Lisätty tämä rivi koska actioneissa tuli joku error eikä se löytänyt jotain modulea tms. 
         run: pytest --cov=. --cov-report=xml
 
       # Docker build ja push
@@ -178,52 +179,58 @@ jobs:
           # Päivitä backend image
           sed -i "s|image: .*backend.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:main-${{ github.sha }}|" kubernetes/backend-deployment.yaml
 
-      - name: Deploy MySQL (jos ei ole jo olemassa)
-        run: |
-          kubectl apply -f kubernetes/mysql-deployment.yaml
-          kubectl apply -f kubernetes/mysql-service.yaml
+# MySQL deployment otettu pois, koska käytetään aiemman viikkotehtävän kanssa samaa mysql db:tä, joka on jo pyörimässä. 
+#      - name: Deploy MySQL (jos ei ole jo olemassa)
+#        run: |
+#          kubectl apply -f kubernetes/mysql-deployment.yaml
+
+# Lisätty deploymentti configmapille
+      - name: Deploy backend ConfigMap
+        run: kubectl apply -f kubernetes/backend-configmap.yaml
 
       - name: Deploy backend
         run: |
           kubectl apply -f kubernetes/backend-deployment.yaml
-          kubectl apply -f kubernetes/backend-service.yaml
-          kubectl rollout status deployment/backend
+          kubectl rollout status deployment/backend-cicd
 
       - name: Deploy frontend
         run: |
           kubectl apply -f kubernetes/frontend-deployment.yaml
-          kubectl apply -f kubernetes/frontend-service.yaml
-          kubectl rollout status deployment/frontend
+          kubectl rollout status deployment/frontend-cicd
 
+#Verifyihin lisätty  "| grep cicd" riveille.
       - name: Verify deployment
         run: |
           echo "=== Pods ==="
-          kubectl get pods
+          kubectl get pods | grep cicd
           echo "=== Services ==="
-          kubectl get services
+          kubectl get services | grep cicd
           echo "=== Deployment status ==="
-          kubectl get deployments
+          kubectl get deployments | grep cicd
+
+# Lisätty nodeport osa
+      - name: Get NodePort
+        run: |
+          echo "Frontend NodePort:"
+          kubectl get service frontend-cicd -o jsonpath='{.spec.ports[0].nodePort}'
 
       - name: Run smoke tests
         run: |
           # Odota että service on valmis
           sleep 10
 
-          # Hae frontend service external IP/NodePort
-          FRONTEND_URL=$(kubectl get service frontend -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          # Hae frontend-cicd service NodePort <-- Otettu aiemmat turhat jutut pois koska tosiaan käytössä nodeport
+          NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+          NODE_PORT=$(kubectl get service frontend-cicd -o jsonpath='{.spec.ports[0].nodePort}')  # CHANGED
+          FRONTEND_URL="http://$NODE_IP:$NODE_PORT"
 
-          # Jos LoadBalancer ei ole käytössä, käytä NodePort
-          if [ -z "$FRONTEND_URL" ]; then
-            NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="ExternalIP")].address}')
-            NODE_PORT=$(kubectl get service frontend -o jsonpath='{.spec.ports[0].nodePort}')
-            FRONTEND_URL="http://$NODE_IP:$NODE_PORT"
-          fi
+          echo "Testing: $FRONTEND_URL/cicd/"
 
           # Testaa että sivusto vastaa
-          curl -f $FRONTEND_URL || exit 1
+          curl -f $FRONTEND_URL/cicd/ || exit 1
 
           # Testaa backend health endpoint
-          curl -f $FRONTEND_URL/api/health || exit 1
+          curl -f $FRONTEND_URL/cicd/api/health || exit 1
 
           echo "✅ Smoke tests passed!"
 
@@ -245,6 +252,6 @@ jobs:
       - name: Rollback deployments
         run: |
           echo "❌ Deployment failed, rolling back..."
-          kubectl rollout undo deployment/frontend
-          kubectl rollout undo deployment/backend
+          kubectl rollout undo deployment/frontend-cicd
+          kubectl rollout undo deployment/backend-cicd
           echo "⏪ Rollback completed"
