@@ -48,8 +48,17 @@ jobs:
         with:
           context: ./frontend
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:latest
           labels: ${{ steps.meta.outputs.labels }}
+
+#      - name: Build and push Docker image
+#        if: github.event_name != 'pull_request'
+#        uses: docker/build-push-action@v5
+#        with:
+#          context: ./frontend
+#          push: true
+#          tags: ${{ steps.meta.outputs.tags }}
+#          labels: ${{ steps.meta.outputs.labels }}
 
   # Job 2: Build ja testaa backend
   build-backend:
@@ -59,7 +68,7 @@ jobs:
       packages: write
 
     services:
-      # Test-MySQL kontainer
+      # Test-MySQL container
       mysql:
         image: mysql:8.0
         env:
@@ -124,10 +133,20 @@ jobs:
         with:
           context: ./backend
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:latest
           labels: ${{ steps.meta.outputs.labels }}
 
-  # Job 3: Deploy to Kubernetes via SSH
+#      - name: Build and push Docker image
+#        if: github.event_name != 'pull_request'
+#        uses: docker/build-push-action@v5
+#        with:
+#          context: ./backend
+#          push: true
+#          tags: ${{ steps.meta.outputs.tags }}
+#          labels: ${{ steps.meta.outputs.labels }}
+
+# Get nodePort ja smoke tests lisätty tänne sisälle
+# Job 3: Deploy to Kubernetes via SSH
   deploy-to-kubernetes:
     needs: [build-frontend, build-backend]
     runs-on: ubuntu-latest
@@ -145,10 +164,14 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           script: |
             # Update backend deployment
-            kubectl set image deployment/backend-cicd backend=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:main-${{ github.sha }} --record
+            kubectl set image deployment/backend-cicd backend=ghcr.io/elitikka/lemp-app2/backend:latest
             
             # Update frontend deployment  
-            kubectl set image deployment/frontend-cicd nginx=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:main-${{ github.sha }} --record
+            kubectl set image deployment/frontend-cicd nginx=ghcr.io/elitikka/lemp-app2/frontend:latest
+            
+            # Restart to pull latest images
+            kubectl rollout restart deployment/backend-cicd
+            kubectl rollout restart deployment/frontend-cicd
             
             # Wait for rollouts to complete
             kubectl rollout status deployment/backend-cicd --timeout=300s
@@ -161,78 +184,93 @@ jobs:
             kubectl get pods | grep cicd
             echo "=== Services ==="
             kubectl get services | grep cicd
+            
+            # Get NodePort
+            echo ""
+            echo "=== NodePort ==="
+            NODE_PORT=$(kubectl get service frontend-cicd -o jsonpath='{.spec.ports[0].nodePort}')
+            echo "Frontend NodePort: $NODE_PORT"
+            
+            # Run smoke tests
+            echo ""
+            echo "=== Running Smoke Tests ==="
+            sleep 10
+            
+            NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+            FRONTEND_URL="http://$NODE_IP:$NODE_PORT"
+            
+            echo "Testing: $FRONTEND_URL/cicd/"
+            
+            # Test that site responds
+            if curl -f $FRONTEND_URL/cicd/; then
+              echo "✅ Frontend is responding"
+            else
+              echo "❌ Frontend test failed"
+              exit 1
+            fi
+            
+            # Test backend health endpoint
+            if curl -f $FRONTEND_URL/cicd/api/health; then
+              echo "✅ Backend health check passed"
+            else
+              echo "❌ Backend health check failed"
+              exit 1
+            fi
+            
+            echo ""
+            echo "✅ All smoke tests passed!"
+
+#      - name: Deploy via SSH
+#        uses: appleboy/ssh-action@v1.0.3
+#        with:
+#          host: ${{ secrets.SSH_HOST }}
+#          username: ${{ secrets.SSH_USER }}
+#          key: ${{ secrets.SSH_KEY }}
+#          script: |
+#            # Update backend deployment
+#            kubectl set image deployment/backend-cicd backend=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:main-${{ github.sha }} --record
+#            
+#            # Update frontend deployment  
+#            kubectl set image deployment/frontend-cicd nginx=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:main-${{ github.sha }} --record
+#            
+#            # Wait for rollouts to complete
+#            kubectl rollout status deployment/backend-cicd --timeout=300s
+#            kubectl rollout status deployment/frontend-cicd --timeout=300s
+#            
+#            # Show status
+#            echo "=== Deployments ==="
+#            kubectl get deployments | grep cicd
+#            echo "=== Pods ==="
+#            kubectl get pods | grep cicd
+#            echo "=== Services ==="
+#            kubectl get services | grep cicd
   
-  # Job 3: Deploy Kubernetesiin
-#  deploy-to-kubernetes:
-#    needs: [build-frontend, build-backend]
-#    runs-on: ubuntu-latest
-#    if: github.ref == 'refs/heads/main' && github.event_name == 'push'##
-#
-#    steps:
-#      - name: Checkout code
-#        uses: actions/checkout@v4#
-#
-#      - name: Update image tags in Kubernetes manifests
-#        run: |
-#          # Päivitä frontend image
-#          sed -i "s|image: .*frontend.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:main-${{ github.sha }}|" kubernetes/frontend-deployment.yaml#
-#
-#          # Päivitä backend image
-#          sed -i "s|image: .*backend.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:main-${{ github.sha }}|" kubernetes/backend-deployment.yaml
-
-# MySQL deployment otettu pois, koska käytetään aiemman viikkotehtävän kanssa samaa mysql db:tä, joka on jo pyörimässä. 
-#      - name: Deploy MySQL (jos ei ole jo olemassa)
-#        run: |
-#          kubectl apply -f kubernetes/mysql-deployment.yaml
-
-# Lisätty deploymentti configmapille
-#      - name: Deploy backend ConfigMap
-#        run: kubectl apply -f kubernetes/backend-configmap.yaml#
-#      - name: Deploy backend
-#        run: |
-#         kubectl apply -f kubernetes/backend-deployment.yaml
-#          kubectl rollout status deployment/backend-cicd
-#
-#      - name: Deploy frontend
-#        run: |
-#          kubectl apply -f kubernetes/frontend-deployment.yaml
-#          kubectl rollout status deployment/frontend-cicd
-
-#Verifyihin lisätty  "| grep cicd" riveille.
-#      - name: Verify deployment
-#        run: |
-#          echo "=== Pods ==="
-#          kubectl get pods | grep cicd
-#          echo "=== Services ==="
-#          kubectl get services | grep cicd
-#          echo "=== Deployment status ==="
-#          kubectl get deployments | grep cicd
-
 # Lisätty nodeport osa
-      - name: Get NodePort
-        run: |
-          echo "Frontend NodePort:"
-          kubectl get service frontend-cicd -o jsonpath='{.spec.ports[0].nodePort}'
+#      - name: Get NodePort
+#        run: |
+#          echo "Frontend NodePort:"
+#          kubectl get service frontend-cicd -o jsonpath='{.spec.ports[0].nodePort}'
+#
+#     - name: Run smoke tests
+#        run: |
+#          # Odota että service on valmis
+#          sleep 10
+#
+#          # Hae frontend-cicd service NodePort <-- Otettu aiemmat turhat jutut pois koska tosiaan käytössä nodeport
+#          NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+#          NODE_PORT=$(kubectl get service frontend-cicd -o jsonpath='{.spec.ports[0].nodePort}')  # CHANGED
+#          FRONTEND_URL="http://$NODE_IP:$NODE_PORT"
+#
+#          echo "Testing: $FRONTEND_URL/cicd/"
+#
+#          # Testaa että sivusto vastaa
+#          curl -f $FRONTEND_URL/cicd/ || exit 1
+#
+#          # Testaa backend health endpoint
+#          curl -f $FRONTEND_URL/cicd/api/health || exit 1
+#
+#          echo "✅ Smoke tests passed!"
 
-      - name: Run smoke tests
-        run: |
-          # Odota että service on valmis
-          sleep 10
-
-          # Hae frontend-cicd service NodePort <-- Otettu aiemmat turhat jutut pois koska tosiaan käytössä nodeport
-          NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
-          NODE_PORT=$(kubectl get service frontend-cicd -o jsonpath='{.spec.ports[0].nodePort}')  # CHANGED
-          FRONTEND_URL="http://$NODE_IP:$NODE_PORT"
-
-          echo "Testing: $FRONTEND_URL/cicd/"
-
-          # Testaa että sivusto vastaa
-          curl -f $FRONTEND_URL/cicd/ || exit 1
-
-          # Testaa backend health endpoint
-          curl -f $FRONTEND_URL/cicd/api/health || exit 1
-
-          echo "✅ Smoke tests passed!"
 
 # Job 4: Rollback on failure
   rollback-on-failure:
@@ -252,25 +290,3 @@ jobs:
             kubectl rollout undo deployment/frontend-cicd
             kubectl rollout undo deployment/backend-cicd
             echo "⏪ Rollback completed"
-
-  # Job 4: Rollback jos deployment epäonnistuu
-#  rollback-on-failure:
-#    needs: [deploy-to-kubernetes]
-#    runs-on: ubuntu-latest
-#    if: failure()
-#
-#    steps:
-#      - name: Setup kubectl
-#        uses: azure/setup-kubectl@v3
-#
-#      - name: Configure kubectl
-#        run: |
-#          mkdir -p $HOME/.kube
-#          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
-#
-#      - name: Rollback deployments
-#        run: |
-#          echo "❌ Deployment failed, rolling back..."
-#          kubectl rollout undo deployment/frontend-cicd
-#          kubectl rollout undo deployment/backend-cicd
-#          echo "⏪ Rollback completed"
