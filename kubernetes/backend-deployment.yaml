@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: backend
+  name: backend-cicd
   labels:
-    app: backend
+    app: backend-cicd
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: backend
+      app: backend-cicd
   template:
     metadata:
       labels:
-        app: backend
+        app: backend-cicd
     spec:
       containers:
       - name: backend
@@ -24,17 +24,17 @@ spec:
         - name: DB_HOST
           valueFrom:
             configMapKeyRef:
-              name: backend-config
+              name: backend-config-cicd
               key: DB_HOST
         - name: DB_NAME
           valueFrom:
             configMapKeyRef:
-              name: backend-config
+              name: backend-config-cicd
               key: DB_NAME
         - name: DB_USER
           valueFrom:
             configMapKeyRef:
-              name: backend-config
+              name: backend-config-cicd
               key: DB_USER
         - name: DB_PASSWORD
           valueFrom:
@@ -45,10 +45,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: backend
+  name: backend-cicd
 spec:
   selector:
-    app: backend
+    app: backend-cicd
   ports:
   - port: 5000
     targetPort: 5000

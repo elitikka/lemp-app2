@@ -179,28 +179,40 @@ jobs:
           # Päivitä backend image
           sed -i "s|image: .*backend.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:main-${{ github.sha }}|" kubernetes/backend-deployment.yaml
 
-      - name: Deploy MySQL (jos ei ole jo olemassa)
-        run: |
-          kubectl apply -f kubernetes/mysql-deployment.yaml
+# MySQL deployment otettu pois, koska käytetään aiemman viikkotehtävän kanssa samaa mysql db:tä, joka on jo pyörimässä. 
+#      - name: Deploy MySQL (jos ei ole jo olemassa)
+#        run: |
+#          kubectl apply -f kubernetes/mysql-deployment.yaml
+
+# Lisätty deploymentti configmapille
+      - name: Deploy backend ConfigMap
+        run: kubectl apply -f kubernetes/backend-configmap.yaml
 
       - name: Deploy backend
         run: |
           kubectl apply -f kubernetes/backend-deployment.yaml
-          kubectl rollout status deployment/backend
+          kubectl rollout status deployment/backend-cicd
 
       - name: Deploy frontend
         run: |
           kubectl apply -f kubernetes/frontend-deployment.yaml
-          kubectl rollout status deployment/frontend
+          kubectl rollout status deployment/frontend-cicd
 
+#Verifyihin lisätty  "| grep cicd" riveille.
       - name: Verify deployment
         run: |
           echo "=== Pods ==="
-          kubectl get pods
+          kubectl get pods | grep cicd
           echo "=== Services ==="
-          kubectl get services
+          kubectl get services | grep cicd
           echo "=== Deployment status ==="
-          kubectl get deployments
+          kubectl get deployments | grep cicd
+
+# Lisätty nodeport osa
+      - name: Get NodePort
+        run: |
+          echo "Frontend NodePort:"
+          kubectl get service frontend-cicd -o jsonpath='{.spec.ports[0].nodePort}'
 
       - name: Run smoke tests
         run: |

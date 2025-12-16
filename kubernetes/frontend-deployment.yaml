@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: frontend
+  name: frontend-cicd
   labels:
-    app: frontend
+    app: frontend-cicd
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: frontend
+      app: frontend-cicd
   template:
     metadata:
       labels:
-        app: frontend
+        app: frontend-cicd
     spec:
       containers:
       - name: nginx
@@ -24,14 +24,14 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: frontend
+  name: frontend-cicd
 spec:
   selector:
-    app: frontend
+    app: frontend-cicd
   ports:
   - port: 80
     targetPort: 80
-    nodeport: 30384 # Lisätty, kun vaihdettu type LoadBalancerista NodePorttiin
+    nodeport: 30385 # Muutettu 30384 --> 30385 # Lisätty, kun vaihdettu type LoadBalancerista NodePorttiin
   type: NodePort # LoadBalancer  # Minikubessa käytetään NodePort:ia
 
   # Note to self: 
