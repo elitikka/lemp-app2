@@ -214,26 +214,23 @@ jobs:
           echo "Frontend NodePort:"
           kubectl get service frontend-cicd -o jsonpath='{.spec.ports[0].nodePort}'
 
-      - name: Run smoke tests
+        - name: Run smoke tests
         run: |
           # Odota että service on valmis
           sleep 10
 
-          # Hae frontend service external IP/NodePort
-          FRONTEND_URL=$(kubectl get service frontend -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          # Hae frontend-cicd service NodePort <-- Otettu aiemmat turhat jutut pois koska tosiaan käytössä nodeport
+          NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+          NODE_PORT=$(kubectl get service frontend-cicd -o jsonpath='{.spec.ports[0].nodePort}')  # CHANGED
+          FRONTEND_URL="http://$NODE_IP:$NODE_PORT"
 
-          # Jos LoadBalancer ei ole käytössä, käytä NodePort
-          if [ -z "$FRONTEND_URL" ]; then
-            NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="ExternalIP")].address}')
-            NODE_PORT=$(kubectl get service frontend -o jsonpath='{.spec.ports[0].nodePort}')
-            FRONTEND_URL="http://$NODE_IP:$NODE_PORT"
-          fi
+          echo "Testing: $FRONTEND_URL/cicd/"
 
           # Testaa että sivusto vastaa
-          curl -f $FRONTEND_URL || exit 1
+          curl -f $FRONTEND_URL/cicd/ || exit 1
 
           # Testaa backend health endpoint
-          curl -f $FRONTEND_URL/api/health || exit 1
+          curl -f $FRONTEND_URL/cicd/api/health || exit 1
 
           echo "✅ Smoke tests passed!"
 
@@ -255,6 +252,6 @@ jobs:
       - name: Rollback deployments
         run: |
           echo "❌ Deployment failed, rolling back..."
-          kubectl rollout undo deployment/frontend
-          kubectl rollout undo deployment/backend
+          kubectl rollout undo deployment/frontend-cicd
+          kubectl rollout undo deployment/backend-cicd
           echo "⏪ Rollback completed"

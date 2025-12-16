@@ -31,7 +31,7 @@ spec:
   ports:
   - port: 80
     targetPort: 80
-    nodeport: 30385 # Muutettu 30384 --> 30385 # Lisätty, kun vaihdettu type LoadBalancerista NodePorttiin
+    nodePort: 30385 # Muutettu 30384 --> 30385 # Lisätty, kun vaihdettu type LoadBalancerista NodePorttiin
   type: NodePort # LoadBalancer  # Minikubessa käytetään NodePort:ia
 
   # Note to self: 
