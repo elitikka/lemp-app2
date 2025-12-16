@@ -56,8 +56,8 @@
 </head>
 <body>
     <div class="container">
-        <h1>LEMP Stack on Kubernetes</h1>
-        <p>Frontend: Nginx | Backend: Python/Flask | Database: MySQL</p>
+        <h1>CI/CD & LEMP Stack on Kubernetes</h1>
+        <p>Frontend: Nginx | Backend: Python/Flask | Database: Shared MySQL DB with previous week's assignment</p>
         <p><strong>Server:</strong> <span id="serverInfo"></span></p>
 
         <div>
@@ -125,15 +125,7 @@
             const section = document.getElementById('addUserSection');
             section.style.display = 'block';
             errorMessage.textContent = "";
-            // Focus on the name input
-            document.getElementById('userName').focus();
         }      
-
-//        function toggleAddUser() {
-//            const section = document.getElementById('addUserSection');
-//            section.style.display = section.style.display === 'none' ? 'block' : 'none';
-//            errorMessage.textContent = "";
-//        }
 
         function closeAddUser() {
             const section = document.getElementById('addUserSection');
