@@ -16,8 +16,8 @@ spec:
     spec:
       containers:
       - name: backend
-        image: backend:latest
-        imagePullPolicy: Never  # Käytä paikallista imagea Minikubessa
+        image: ghcr.io/elitikka/lemp-app2/backend:main # Aiemmin oli: backend:latest
+        imagePullPolicy: Always # Aiemmin oli: Never  # Käytä paikallista imagea Minikubessa
         ports:
         - containerPort: 5000
         env:

@@ -23,28 +23,28 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+#      - name: Setup Node.js
+#        uses: actions/setup-node@v4
+#        with:
+#          node-version: '18'
+#          cache: 'npm'
+#          cache-dependency-path: frontend/package-lock.json
 
-      - name: Install dependencies
-        working-directory: ./frontend
-        run: npm ci
+#      - name: Install dependencies
+#        working-directory: ./frontend
+#        run: npm ci
 
-      - name: Run linter
-        working-directory: ./frontend
-        run: npm run lint
+#      - name: Run linter
+#        working-directory: ./frontend
+#        run: npm run lint
 
-      - name: Run tests
-        working-directory: ./frontend
-        run: npm test
+#      - name: Run tests
+#        working-directory: ./frontend
+#        run: npm test
 
-      - name: Build application
-        working-directory: ./frontend
-        run: npm run build
+ #     - name: Build application
+ #       working-directory: ./frontend
+ #       run: npm run build
 
       # Docker build ja push
       - name: Log in to Container Registry

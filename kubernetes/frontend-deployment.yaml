@@ -16,8 +16,8 @@ spec:
     spec:
       containers:
       - name: nginx
-        image: frontend:latest
-        imagePullPolicy: Never  # Käytä paikallista imagea Minikubessa
+        image: ghcr.io/elitikka/lemp-app2/frontend:main # Aiemmin oli: frontend:latest
+        imagePullPolicy: Always # Aiemmin oli: Never  # Käytä paikallista imagea Minikubessa
         ports:
         - containerPort: 80
 ---
