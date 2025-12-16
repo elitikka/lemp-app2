@@ -214,7 +214,7 @@ jobs:
           echo "Frontend NodePort:"
           kubectl get service frontend-cicd -o jsonpath='{.spec.ports[0].nodePort}'
 
-        - name: Run smoke tests
+      - name: Run smoke tests
         run: |
           # Odota että service on valmis
           sleep 10
