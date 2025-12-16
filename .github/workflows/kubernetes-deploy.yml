@@ -142,11 +142,22 @@ jobs:
         with:
           version: 'latest'
 
+# debuggausta
       - name: Configure kubectl
         run: |
           mkdir -p $HOME/.kube
-          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
+          echo "Secret length: ${#KUBE_CONFIG}"
+          echo "$KUBE_CONFIG" | head -c 100
+          echo "$KUBE_CONFIG" | base64 -d > $HOME/.kube/config
           chmod 600 $HOME/.kube/config
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+
+#      - name: Configure kubectl
+#        run: |
+#          mkdir -p $HOME/.kube
+#          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
+#          chmod 600 $HOME/.kube/config
 
       - name: Update image tags in Kubernetes manifests
         run: |
