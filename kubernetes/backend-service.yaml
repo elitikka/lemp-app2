@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend  # ← DNS: backend.default.svc.cluster.local
+spec:
+  type: ClusterIP  # ← Vain klusterin sisäinen (ei ulkopuolista pääsyä)
+  selector:
+    app: backend
+  ports:
+  - port: 5000        # ← Service kuuntelee 5000
+    targetPort: 5000  # ← Ohjaa pod:n porttiin 5000
+
+# Backend Service saa ClusterIP:n, esim: 10.96.145.78:5000
+# Frontend voi kutsua: http://backend:5000/api/health
