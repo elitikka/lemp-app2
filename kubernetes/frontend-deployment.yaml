@@ -31,4 +31,9 @@ spec:
   ports:
   - port: 80
     targetPort: 80
-  type: LoadBalancer  # Minikubessa käytetään NodePort:ia
+    nodeport: 30384 # Lisätty, kun vaihdettu type LoadBalancerista NodePorttiin
+  type: NodePort # LoadBalancer  # Minikubessa käytetään NodePort:ia
+
+  # Note to self: 
+  # Oli duplikaattina esim. frontend-service.yaml missä oli samat service tiedot. Ne nyt on tässä samassa. 
+  # Poistin erilliset -service.yaml tiedostot.
