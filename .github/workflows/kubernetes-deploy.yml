@@ -181,18 +181,15 @@ jobs:
       - name: Deploy MySQL (jos ei ole jo olemassa)
         run: |
           kubectl apply -f kubernetes/mysql-deployment.yaml
-          kubectl apply -f kubernetes/mysql-service.yaml
 
       - name: Deploy backend
         run: |
           kubectl apply -f kubernetes/backend-deployment.yaml
-          kubectl apply -f kubernetes/backend-service.yaml
           kubectl rollout status deployment/backend
 
       - name: Deploy frontend
         run: |
           kubectl apply -f kubernetes/frontend-deployment.yaml
-          kubectl apply -f kubernetes/frontend-service.yaml
           kubectl rollout status deployment/frontend
 
       - name: Verify deployment
